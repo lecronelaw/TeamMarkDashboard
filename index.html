@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Mark - Reports & Demands</title>
+    <!-- Silence favicon 404 -->
+    <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --item-name-size: 28px;
+            --item-details-size: 18px;
+            --item-date-size: 26px;
+            --item-padding: 10px;
+            --item-margin: 8px;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            background: black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #ffffff;
+        }
+
+        #dashboard {
+            width: 1920px;
+            height: 1080px;
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .container {
+            width: 100%;
+            height: calc(100% - 60px);
+            padding: 12px 30px 12px 30px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 8px;
+            flex-shrink: 0;
+        }
+
+        h1 {
+            font-size: 48px;
+            font-weight: bold;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.3);
+            margin-bottom: 3px;
+        }
+
+        .subtitle {
+            font-size: 24px;
+            opacity: 0.9;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            flex: 1;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .section {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding-bottom: 5px;
+            border-bottom: 3px solid rgba(255, 255, 255, 0.3);
+            flex-shrink: 0;
+        }
+
+        .section-title {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .add-btn {
+            background: rgba(255, 255, 255, 0.3);
+            border: none;
+            border-radius: 12px;
+            padding: 6px 18px;
+            font-size: 22px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+
+        .add-btn:hover {
+            background: rgba(255, 255, 255, 0.5);
+            transform: scale(1.05);
+        }
+
+        .items-container {
+            flex: 1;
+            overflow: hidden;
+            padding-right: 5px;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .item {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: var(--item-padding);
+            margin-bottom: var(--item-margin);
+            display: grid;
+            grid-template-columns: auto 1fr auto auto;
+            grid-template-rows: auto auto;
+            column-gap: 15px;
+            row-gap: 3px;
+            align-items: start;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            min-height: 0;
+        }
+
+        .item:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateX(5px);
+        }
+
+        .item.overdue {
+            border-color: #ff4757;
+            background: rgba(255, 71, 87, 0.2);
+        }
+
+        .item.due-soon {
+            border-color: #ffa502;
+            background: rgba(255, 165, 2, 0.2);
+        }
+
+        .status-indicator {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            grid-row: 1 / 3;
+            align-self: start;
+            flex-shrink: 0;
+        }
+
+        .status-indicator.overdue {
+            background: #ff4757;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.due-soon {
+            background: #ffa502;
+        }
+
+        .status-indicator.ok {
+            background: #2ed573;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .item-name {
+            font-size: var(--item-name-size);
+            font-weight: 600;
+            grid-column: 2;
+            grid-row: 1;
+            align-self: center;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.2;
+        }
+
+        .item-date {
+            font-size: var(--item-date-size);
+            font-weight: bold;
+            grid-column: 3;
+            grid-row: 1;
+            align-self: center;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .item-details {
+            grid-column: 2 / 4;
+            grid-row: 2;
+            font-size: var(--item-details-size);
+            opacity: 0.9;
+            line-height: 1.2;
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .delete-btn {
+            background: rgba(255, 71, 87, 0.3);
+            border: none;
+            border-radius: 8px;
+            padding: calc(var(--item-padding) * 0.7) calc(var(--item-padding) * 1.2);
+            font-size: calc(var(--item-date-size) * 0.8);
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            grid-column: 4;
+            grid-row: 1 / 3;
+            align-self: start;
+        }
+
+        .delete-btn:hover {
+            background: rgba(255, 71, 87, 0.6);
+            transform: scale(1.1);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            font-size: 30px;
+            opacity: 0.6;
+        }
+
+        .clock {
+            position: absolute;
+            top: 15px;
+            right: 35px;
+            font-size: 34px;
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 12px 25px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .ticker-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.9);
+            border-top: 4px solid #00bfff;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .ticker-label {
+            background: #00bfff;
+            color: white;
+            padding: 0 30px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .ticker-content {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+        }
+
+        .ticker-track {
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
+            animation: scroll 60s linear infinite;
+        }
+
+        .weather-item {
+            display: inline-flex;
+            align-items: center;
+            margin-right: 100px;
+            font-size: 26px;
+            color: white;
+        }
+
+        @keyframes scroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            padding: 40px;
+            width: 760px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 3px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .modal-header {
+            font-size: 50px;
+            font-weight: bold;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 30px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 16px;
+            font-size: 26px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-family: inherit;
+        }
+
+        .form-group input::placeholder,
+        .form-group textarea::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 20px;
+            font-size: 30px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .modal-btn.save {
+            background: rgba(46, 213, 115, 0.8);
+            color: white;
+        }
+
+        .modal-btn.save:hover {
+            background: rgba(46, 213, 115, 1);
+            transform: scale(1.05);
+        }
+
+        .modal-btn.cancel {
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+        }
+
+        .modal-btn.cancel:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="dashboard">
+        <div class="container">
+            <div class="clock" id="clock"></div>
+            
+            <header>
+                <h1>Team Mark</h1>
+                <div class="subtitle">Reports & Demands Tracker</div>
+            </header>
+
+            <div class="dashboard-grid">
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-title">📊 Reports</div>
+                        <button class="add-btn" onclick="openModal('report')">+ Add</button>
+                    </div>
+                    <div class="items-container" id="reports-container">
+                        <div class="empty-state">No reports yet. Click "+ Add" to create one.</div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-title">📋 Demands</div>
+                        <button class="add-btn" onclick="openModal('demand')">+ Add</button>
+                    </div>
+                    <div class="items-container" id="demands-container">
+                        <div class="empty-state">No demands yet. Click "+ Add" to create one.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ticker-container">
+            <div class="ticker-label">WEATHER</div>
+            <div class="ticker-content">
+                <div class="ticker-track" id="ticker"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <div class="modal-header" id="modal-title">Add Item</div>
+            <form id="item-form">
+                <div class="form-group">
+                    <label for="item-name">Name / Title</label>
+                    <input type="text" id="item-name" required placeholder="Enter name...">
+                </div>
+                <div class="form-group">
+                    <label for="item-details">Details / Notes</label>
+                    <textarea id="item-details" placeholder="Add any additional details..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="item-date">Due Date</label>
+                    <input type="date" id="item-date" required>
+                </div>
+                <div class="form-group" id="time-field" style="display: none;">
+                    <label for="item-time">Due Time</label>
+                    <input type="time" id="item-time">
+                </div>
+                <div class="modal-buttons">
+                    <button type="submit" class="modal-btn save">Save</button>
+                    <button type="button" class="modal-btn cancel" onclick="closeModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyAyzfuZJzAKmh9Qy96za13uPKjBTZ9TsSM",
+          authDomain: "team-mark-dashboard.firebaseapp.com",
+          databaseURL: "https://team-mark-dashboard-default-rtdb.firebaseio.com",
+          projectId: "team-mark-dashboard",
+          storageBucket: "team-mark-dashboard.firebasestorage.app",
+          messagingSenderId: "568325005906",
+          appId: "1:568325005906:web:b23e2e772e32c67e9e358b"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const reportsRef = db.ref('reports');
+        const demandsRef = db.ref('demands');
+
+        let reports = {};
+        let demands = {};
+        let currentType = '';
+
+        function adjustScaling() {
+            const maxItems = Math.max(Object.keys(reports).length, Object.keys(demands).length);
+            const root = document.documentElement;
+
+            if (maxItems <= 3) {
+                root.style.setProperty('--item-name-size', '28px');
+                root.style.setProperty('--item-details-size', '18px');
+                root.style.setProperty('--item-date-size', '26px');
+                root.style.setProperty('--item-padding', '10px');
+                root.style.setProperty('--item-margin', '8px');
+            } else if (maxItems <= 5) {
+                root.style.setProperty('--item-name-size', '25px');
+                root.style.setProperty('--item-details-size', '17px');
+                root.style.setProperty('--item-date-size', '23px');
+                root.style.setProperty('--item-padding', '9px');
+                root.style.setProperty('--item-margin', '7px');
+            } else if (maxItems <= 7) {
+                root.style.setProperty('--item-name-size', '22px');
+                root.style.setProperty('--item-details-size', '15px');
+                root.style.setProperty('--item-date-size', '20px');
+                root.style.setProperty('--item-padding', '8px');
+                root.style.setProperty('--item-margin', '6px');
+            } else if (maxItems <= 9) {
+                root.style.setProperty('--item-name-size', '20px');
+                root.style.setProperty('--item-details-size', '14px');
+                root.style.setProperty('--item-date-size', '18px');
+                root.style.setProperty('--item-padding', '7px');
+                root.style.setProperty('--item-margin', '5px');
+            } else if (maxItems <= 11) {
+                root.style.setProperty('--item-name-size', '18px');
+                root.style.setProperty('--item-details-size', '13px');
+                root.style.setProperty('--item-date-size', '16px');
+                root.style.setProperty('--item-padding', '6px');
+                root.style.setProperty('--item-margin', '4px');
+            } else if (maxItems <= 13) {
+                root.style.setProperty('--item-name-size', '17px');
+                root.style.setProperty('--item-details-size', '12px');
+                root.style.setProperty('--item-date-size', '15px');
+                root.style.setProperty('--item-padding', '6px');
+                root.style.setProperty('--item-margin', '4px');
+            } else if (maxItems <= 15) {
+                root.style.setProperty('--item-name-size', '16px');
+                root.style.setProperty('--item-details-size', '12px');
+                root.style.setProperty('--item-date-size', '14px');
+                root.style.setProperty('--item-padding', '5px');
+                root.style.setProperty('--item-margin', '3px');
+            } else if (maxItems <= 18) {
+                root.style.setProperty('--item-name-size', '15px');
+                root.style.setProperty('--item-details-size', '11px');
+                root.style.setProperty('--item-date-size', '13px');
+                root.style.setProperty('--item-padding', '5px');
+                root.style.setProperty('--item-margin', '3px');
+            } else if (maxItems <= 22) {
+                root.style.setProperty('--item-name-size', '14px');
+                root.style.setProperty('--item-details-size', '10px');
+                root.style.setProperty('--item-date-size', '12px');
+                root.style.setProperty('--item-padding', '4px');
+                root.style.setProperty('--item-margin', '2px');
+            } else {
+                root.style.setProperty('--item-name-size', '13px');
+                root.style.setProperty('--item-details-size', '10px');
+                root.style.setProperty('--item-date-size', '11px');
+                root.style.setProperty('--item-padding', '4px');
+                root.style.setProperty('--item-margin', '2px');
+            }
+        }
+
+        function updateClock() {
+            const now = new Date();
+            const options = { 
+                weekday: 'short', 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            };
+            document.getElementById('clock').textContent = now.toLocaleDateString('en-US', options);
+        }
+
+        function openModal(type) {
+            currentType = type;
+            document.getElementById('modal-title').textContent = `Add ${type === 'report' ? 'Report' : 'Demand'}`;
+            const timeField = document.getElementById('time-field');
+            timeField.style.display = type === 'demand' ? 'block' : 'none';
+            document.getElementById('modal').classList.add('active');
+            document.getElementById('item-name').focus();
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.remove('active');
+            document.getElementById('item-form').reset();
+        }
+
+        function getStatus(dueDate) {
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+            
+            // Parse date in local timezone to avoid off-by-one errors
+            const [year, month, day] = dueDate.split('-');
+            const due = new Date(year, month - 1, day);
+            due.setHours(0, 0, 0, 0);
+            
+            const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+            if (diffDays < 0) return 'overdue';
+            if (diffDays <= 3) return 'due-soon';
+            return 'ok';
+        }
+
+        function formatDate(dateString, timeString) {
+            // Parse date in local timezone to avoid off-by-one errors
+            const [year, month, day] = dateString.split('-');
+            const date = new Date(year, month - 1, day);
+            
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+            
+            const due = new Date(year, month - 1, day);
+            due.setHours(0, 0, 0, 0);
+            
+            const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+
+            const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+            let result = formatted;
+            if (diffDays < 0) result += ` (${Math.abs(diffDays)}d overdue)`;
+            else if (diffDays === 0) result += ` (TODAY)`;
+            else if (diffDays === 1) result += ` (Tomorrow)`;
+            else if (diffDays <= 7) result += ` (${diffDays}d)`;
+
+            return { date: result, time: timeString };
+        }
+
+        function formatTime(time) {
+            if (!time) return '';
+            const [hours, minutes] = time.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const displayHour = hour % 12 || 12;
+            return `${displayHour}:${minutes} ${ampm}`;
+        }
+
+        reportsRef.on('value', (snapshot) => {
+            reports = snapshot.val() || {};
+            renderItems();
+        });
+
+        demandsRef.on('value', (snapshot) => {
+            demands = snapshot.val() || {};
+            renderItems();
+        });
+
+        function renderItems() {
+            renderList('reports', reports);
+            renderList('demands', demands);
+        }
+
+        function renderList(type, itemsObj) {
+            const container = document.getElementById(`${type}-container`);
+            const items = Object.entries(itemsObj || {}).map(([key, item]) => ({ ...item, key }));
+            
+            if (items.length === 0) {
+                container.innerHTML = `<div class="empty-state">No ${type} yet. Click "+ Add" to create one.</div>`;
+                adjustScaling();
+                return;
+            }
+
+            items.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            container.innerHTML = items.map((item) => {
+                const status = getStatus(item.date);
+                const dateInfo = formatDate(item.date, item.time);
+                const dateText = dateInfo.date + (dateInfo.time ? ` ⏰ ${formatTime(dateInfo.time)}` : '');
+
+                return `
+                    <div class="item ${status}">
+                        <div class="status-indicator ${status}"></div>
+                        <div class="item-name">${item.name}</div>
+                        <div class="item-date">${dateText}</div>
+                        ${item.details ? `<div class="item-details">${item.details}</div>` : ''}
+                        <button class="delete-btn" data-type="${type}" data-key="${item.key}">✕</button>
+                    </div>
+                `;
+            }).join('');
+            
+            adjustScaling();
+        }
+
+        // Event delegation with optimistic UI + detailed error handling
+        ['reports-container', 'demands-container'].forEach(containerId => {
+            document.getElementById(containerId).addEventListener('click', (e) => {
+                if (e.target.classList.contains('delete-btn')) {
+                    const btn = e.target;
+                    const itemElement = btn.closest('.item');
+                    const type = btn.dataset.type;
+                    const key = btn.dataset.key;
+                    console.log(`Delete clicked for ${type} with key: ${key}`);
+                    if (!key) {
+                        alert('Cannot delete this item (old version - no key). Please re-add it.');
+                        return;
+                    }
+                    if (confirm('Are you sure you want to delete this item?')) {
+                        // Optimistic UI: Remove immediately
+                        if (itemElement) itemElement.remove();
+                        adjustScaling();
+
+                        // Firebase delete with detailed logging
+                        const ref = type === 'reports' ? reportsRef.child(key) : demandsRef.child(key);
+                        console.log(`Attempting delete at path: ${ref.toString()}`);
+                        ref.remove().then(() => {
+                            console.log('Item deleted successfully in Firebase');
+                        }).catch((error) => {
+                            console.error('Firebase delete failed:', error);
+                            alert(`Delete failed: ${error.message}. Check rules or console.`);
+                            renderItems(); // Revert UI on error
+                        });
+                    }
+                }
+            });
+        });
+
+        document.getElementById('item-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const item = {
+                name: document.getElementById('item-name').value.trim(),
+                details: document.getElementById('item-details').value.trim(),
+                date: document.getElementById('item-date').value,
+                time: currentType === 'demand' ? document.getElementById('item-time').value : null
+            };
+
+            const ref = currentType === 'report' ? reportsRef : demandsRef;
+            console.log(`Adding item to ${currentType}`);
+            ref.push(item).then(() => {
+                console.log('Item added successfully to Firebase');
+            }).catch((error) => {
+                console.error('Add failed:', error);
+                alert(`Add failed: ${error.message}. Check rules or console.`);
+            });
+
+            closeModal();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        async function fetchWeather() {
+            try {
+                const response = await fetch('https://wttr.in/Sherman,TX?format=%l:+%c+%t+%w+%Pmm+precip');
+                if (!response.ok) throw new Error('Weather fetch failed');
+                const text = await response.text();
+                const weatherText = `🌤️ Sherman, TX • ${text.trim()}`;
+
+                const singleTrack = `<div class="weather-item"><span>${weatherText}</span></div>`;
+
+                const track = document.getElementById('ticker');
+                if (track) track.innerHTML = singleTrack + singleTrack;
+            } catch (error) {
+                const fallback = '🌤️ Sherman, TX • 72°F, Partly Cloudy, Wind SW 10mph, 0mm precip';
+                const singleTrack = `<div class="weather-item"><span>${fallback}</span></div>`;
+                const track = document.getElementById('ticker');
+                if (track) track.innerHTML = singleTrack + singleTrack;
+            }
+        }
+
+        function resizeDashboard() {
+            const dashboard = document.getElementById('dashboard');
+            const scale = Math.min(
+                window.innerWidth / 1920,
+                window.innerHeight / 1080
+            );
+            dashboard.style.transform = `scale(${scale})`;
+            dashboard.style.transformOrigin = 'center center';
+        }
+
+        window.addEventListener('load', () => {
+            resizeDashboard();
+            window.addEventListener('resize', resizeDashboard);
+            updateClock();
+            setInterval(updateClock, 60000);
+            fetchWeather();
+            setInterval(fetchWeather, 600000);
+        });
+    </script>
+</body>
+</html>
