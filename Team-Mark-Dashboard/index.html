@@ -274,7 +274,7 @@
             width: 100%;
             height: 60px;
             background: rgba(0, 0, 0, 0.9);
-            border-top: 4px solid #00bfff;
+            border-top: 4px solid #ff0033;
             overflow: hidden;
             display: flex;
             align-items: center;
@@ -282,7 +282,7 @@
         }
 
         .ticker-label {
-            background: #00bfff;
+            background: #ff0033;
             color: white;
             padding: 0 30px;
             height: 100%;
@@ -305,6 +305,13 @@
             align-items: center;
             white-space: nowrap;
             animation: scroll 60s linear infinite;
+        }
+
+        .ticker-item {
+            display: inline-flex;
+            align-items: center;
+            font-size: 24px;
+            color: white;
         }
 
         .weather-item {
@@ -458,7 +465,7 @@
         </div>
 
         <div class="ticker-container">
-            <div class="ticker-label">WEATHER</div>
+            <div class="ticker-label">ESPN</div>
             <div class="ticker-content">
                 <div class="ticker-track" id="ticker"></div>
             </div>
@@ -759,22 +766,84 @@
             if (e.key === 'Escape') closeModal();
         });
 
-        async function fetchWeather() {
+        async function fetchSportsScores() {
             try {
-                const response = await fetch('https://wttr.in/Sherman,TX?format=%l:+%c+%t+%w+%Pmm+precip');
-                if (!response.ok) throw new Error('Weather fetch failed');
-                const text = await response.text();
-                const weatherText = `🌤️ Sherman, TX • ${text.trim()}`;
+                const sports = [
+                    { name: 'NFL', path: 'football/nfl' },
+                    { name: 'NBA', path: 'basketball/nba' },
+                    { name: 'MLB', path: 'baseball/mlb' },
+                    { name: 'NHL', path: 'hockey/nhl' }
+                ];
+                
+                let allGames = [];
 
-                const singleTrack = `<div class="weather-item"><span>${weatherText}</span></div>`;
+                for (const sport of sports) {
+                    try {
+                        const response = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport.path}/scoreboard`);
+                        if (!response.ok) continue;
+                        const data = await response.json();
+                        
+                        if (data.events && data.events.length > 0) {
+                            data.events.forEach(event => {
+                                const competition = event.competitions[0];
+                                const homeTeam = competition.competitors.find(t => t.homeAway === 'home');
+                                const awayTeam = competition.competitors.find(t => t.homeAway === 'away');
+                                
+                                allGames.push({
+                                    sport: sport.name,
+                                    awayTeam: awayTeam.team.abbreviation,
+                                    awayScore: awayTeam.score,
+                                    homeTeam: homeTeam.team.abbreviation,
+                                    homeScore: homeTeam.score,
+                                    status: competition.status.type.shortDetail
+                                });
+                            });
+                        }
+                    } catch (err) {
+                        console.log(`Error fetching ${sport.name}:`, err);
+                    }
+                }
+
+                if (allGames.length === 0) {
+                    allGames = [
+                        { sport: 'NFL', awayTeam: 'DAL', awayScore: '28', homeTeam: 'PHI', homeScore: '24', status: 'FINAL' },
+                        { sport: 'NBA', awayTeam: 'LAL', awayScore: '112', homeTeam: 'GSW', homeScore: '108', status: 'FINAL' },
+                        { sport: 'MLB', awayTeam: 'NYY', awayScore: '5', homeTeam: 'BOS', homeScore: '3', status: 'F/9' },
+                        { sport: 'NHL', awayTeam: 'TOR', awayScore: '4', homeTeam: 'BOS', homeScore: '2', status: 'FINAL' }
+                    ];
+                }
+
+                const tickerItems = allGames.map(game => `
+                    <div class="ticker-item">
+                        <span style="color: #ff6b35; font-weight: bold; margin-right: 10px;">${game.sport}</span>
+                        <span style="font-weight: 600;">${game.awayTeam}</span>
+                        <span style="color: #ffd700; font-weight: bold; margin: 0 8px;">${game.awayScore}</span>
+                        <span>-</span>
+                        <span style="color: #ffd700; font-weight: bold; margin: 0 8px;">${game.homeScore}</span>
+                        <span style="font-weight: 600;">${game.homeTeam}</span>
+                        <span style="color: #888; margin-left: 10px; font-size: 20px;">${game.status}</span>
+                        <span style="color: #666; margin: 0 40px;">|</span>
+                    </div>
+                `).join('');
 
                 const track = document.getElementById('ticker');
-                if (track) track.innerHTML = singleTrack + singleTrack;
+                if (track) track.innerHTML = tickerItems + tickerItems;
             } catch (error) {
-                const fallback = '🌤️ Sherman, TX • 72°F, Partly Cloudy, Wind SW 10mph, 0mm precip';
-                const singleTrack = `<div class="weather-item"><span>${fallback}</span></div>`;
+                console.error('Error fetching sports scores:', error);
+                const fallback = `
+                    <div class="ticker-item">
+                        <span style="color: #ff6b35; font-weight: bold; margin-right: 10px;">NFL</span>
+                        <span style="font-weight: 600;">DAL</span>
+                        <span style="color: #ffd700; font-weight: bold; margin: 0 8px;">28</span>
+                        <span>-</span>
+                        <span style="color: #ffd700; font-weight: bold; margin: 0 8px;">24</span>
+                        <span style="font-weight: 600;">PHI</span>
+                        <span style="color: #888; margin-left: 10px; font-size: 20px;">FINAL</span>
+                        <span style="color: #666; margin: 0 40px;">|</span>
+                    </div>
+                `;
                 const track = document.getElementById('ticker');
-                if (track) track.innerHTML = singleTrack + singleTrack;
+                if (track) track.innerHTML = fallback + fallback;
             }
         }
 
@@ -793,8 +862,8 @@
             window.addEventListener('resize', resizeDashboard);
             updateClock();
             setInterval(updateClock, 60000);
-            fetchWeather();
-            setInterval(fetchWeather, 600000);
+            fetchSportsScores();
+            setInterval(fetchSportsScores, 300000); // Update every 5 minutes
         });
     </script>
 </body>
