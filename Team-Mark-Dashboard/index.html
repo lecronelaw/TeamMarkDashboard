@@ -870,6 +870,11 @@
                         if (data.events && data.events.length > 0) {
                             data.events.forEach(event => {
                                 const competition = event.competitions[0];
+                                const statusType = competition.status.type.state; // 'pre', 'in', 'post'
+
+                                // Only include completed (post) games
+                                if (statusType !== 'post') return;
+
                                 const homeTeam = competition.competitors.find(t => t.homeAway === 'home');
                                 const awayTeam = competition.competitors.find(t => t.homeAway === 'away');
                                 
@@ -889,12 +894,10 @@
                 }
 
                 if (allGames.length === 0) {
-                    allGames = [
-                        { sport: 'NFL', awayTeam: 'DAL', awayScore: '28', homeTeam: 'PHI', homeScore: '24', status: 'FINAL' },
-                        { sport: 'NBA', awayTeam: 'LAL', awayScore: '112', homeTeam: 'GSW', homeScore: '108', status: 'FINAL' },
-                        { sport: 'MLB', awayTeam: 'NYY', awayScore: '5', homeTeam: 'BOS', homeScore: '3', status: 'F/9' },
-                        { sport: 'NHL', awayTeam: 'TOR', awayScore: '4', homeTeam: 'BOS', homeScore: '2', status: 'FINAL' }
-                    ];
+                    const track = document.getElementById('ticker');
+                    const msg = '<div class="ticker-item"><span style="color: #aaa;">No final scores available at this time — check back later.</span></div>';
+                    if (track) track.innerHTML = msg + msg;
+                    return;
                 }
 
                 const tickerItems = allGames.map(game => `
@@ -914,20 +917,9 @@
                 if (track) track.innerHTML = tickerItems + tickerItems;
             } catch (error) {
                 console.error('Error fetching sports scores:', error);
-                const fallback = `
-                    <div class="ticker-item">
-                        <span style="color: #ff6b35; font-weight: bold; margin-right: 10px;">NFL</span>
-                        <span style="font-weight: 600;">DAL</span>
-                        <span style="color: #ffd700; font-weight: bold; margin: 0 8px;">28</span>
-                        <span>-</span>
-                        <span style="color: #ffd700; font-weight: bold; margin: 0 8px;">24</span>
-                        <span style="font-weight: 600;">PHI</span>
-                        <span style="color: #888; margin-left: 10px; font-size: 20px;">FINAL</span>
-                        <span style="color: #666; margin: 0 40px;">|</span>
-                    </div>
-                `;
                 const track = document.getElementById('ticker');
-                if (track) track.innerHTML = fallback + fallback;
+                const msg = '<div class="ticker-item"><span style="color: #aaa;">Scores unavailable — ESPN API could not be reached.</span></div>';
+                if (track) track.innerHTML = msg + msg;
             }
         }
 
