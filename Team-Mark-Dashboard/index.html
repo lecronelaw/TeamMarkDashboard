@@ -862,35 +862,42 @@
                 
                 let allGames = [];
 
-                for (const sport of sports) {
-                    try {
-                        const response = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport.path}/scoreboard`);
-                        if (!response.ok) continue;
-                        const data = await response.json();
-                        
-                        if (data.events && data.events.length > 0) {
-                            data.events.forEach(event => {
-                                const competition = event.competitions[0];
-                                const statusType = competition.status.type.state; // 'pre', 'in', 'post'
+                // Get scores from the last 3 days
+                for (let daysAgo = 0; daysAgo < 3; daysAgo++) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - daysAgo);
+                    const dateStr = date.toISOString().split('T')[0].replace(/-/g, ''); // Format: YYYYMMDD
 
-                                // Only include completed (post) games
-                                if (statusType !== 'post') return;
+                    for (const sport of sports) {
+                        try {
+                            const response = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport.path}/scoreboard?dates=${dateStr}`);
+                            if (!response.ok) continue;
+                            const data = await response.json();
+                            
+                            if (data.events && data.events.length > 0) {
+                                data.events.forEach(event => {
+                                    const competition = event.competitions[0];
+                                    const statusType = competition.status.type.state; // 'pre', 'in', 'post'
 
-                                const homeTeam = competition.competitors.find(t => t.homeAway === 'home');
-                                const awayTeam = competition.competitors.find(t => t.homeAway === 'away');
-                                
-                                allGames.push({
-                                    sport: sport.name,
-                                    awayTeam: awayTeam.team.abbreviation,
-                                    awayScore: awayTeam.score,
-                                    homeTeam: homeTeam.team.abbreviation,
-                                    homeScore: homeTeam.score,
-                                    status: competition.status.type.shortDetail
+                                    // Only include completed (post) games
+                                    if (statusType !== 'post') return;
+
+                                    const homeTeam = competition.competitors.find(t => t.homeAway === 'home');
+                                    const awayTeam = competition.competitors.find(t => t.homeAway === 'away');
+                                    
+                                    allGames.push({
+                                        sport: sport.name,
+                                        awayTeam: awayTeam.team.abbreviation,
+                                        awayScore: awayTeam.score,
+                                        homeTeam: homeTeam.team.abbreviation,
+                                        homeScore: homeTeam.score,
+                                        status: competition.status.type.shortDetail
+                                    });
                                 });
-                            });
+                            }
+                        } catch (err) {
+                            console.log(`Error fetching ${sport.name} for ${dateStr}:`, err);
                         }
-                    } catch (err) {
-                        console.log(`Error fetching ${sport.name}:`, err);
                     }
                 }
 
