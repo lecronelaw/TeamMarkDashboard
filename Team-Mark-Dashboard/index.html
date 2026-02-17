@@ -811,17 +811,21 @@
 
         document.getElementById('item-form').addEventListener('submit', (e) => {
             e.preventDefault();
+            
+            // Determine the actual type (editing takes precedence over currentType)
+            const actualType = window.editingType || currentType;
+            
             const item = {
                 name: document.getElementById('item-name').value.trim(),
                 details: document.getElementById('item-details').value.trim(),
                 date: document.getElementById('item-date').value,
-                time: currentType === 'demand' ? document.getElementById('item-time').value : null
+                time: actualType === 'demands' || actualType === 'demand' ? document.getElementById('item-time').value : null
             };
 
             // Check if we're editing or adding
             if (window.editingKey && window.editingType) {
                 // Edit existing item
-                const ref = window.editingType === 'report' ? reportsRef.child(window.editingKey) : demandsRef.child(window.editingKey);
+                const ref = window.editingType === 'reports' ? reportsRef.child(window.editingKey) : demandsRef.child(window.editingKey);
                 console.log(`Updating item in ${window.editingType} with key: ${window.editingKey}`);
                 ref.update(item).then(() => {
                     console.log('Item updated successfully in Firebase');
@@ -853,10 +857,7 @@
         async function fetchSportsScores() {
             try {
                 const sports = [
-                    { name: 'NFL', path: 'football/nfl' },
-                    { name: 'NBA', path: 'basketball/nba' },
-                    { name: 'MLB', path: 'baseball/mlb' },
-                    { name: 'NHL', path: 'hockey/nhl' }
+                    { name: 'NBA', path: 'basketball/nba' }
                 ];
                 
                 let allGames = [];
