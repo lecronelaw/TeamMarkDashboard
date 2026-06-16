@@ -651,7 +651,6 @@
             const now = new Date();
             now.setHours(0, 0, 0, 0);
             
-            // Parse date in local timezone to avoid off-by-one errors
             const [year, month, day] = dueDate.split('-');
             const due = new Date(year, month - 1, day);
             due.setHours(0, 0, 0, 0);
@@ -663,7 +662,6 @@
         }
 
         function formatDate(dateString, timeString) {
-            // Parse date in local timezone to avoid off-by-one errors
             const [year, month, day] = dateString.split('-');
             const date = new Date(year, month - 1, day);
             
@@ -742,7 +740,6 @@
             adjustScaling();
         }
 
-        // Event delegation with optimistic UI + detailed error handling
         ['reports-container', 'demands-container'].forEach(containerId => {
             document.getElementById(containerId).addEventListener('click', (e) => {
                 if (e.target.classList.contains('edit-btn')) {
@@ -755,14 +752,12 @@
                         return;
                     }
                     
-                    // Get the item data
                     const itemData = type === 'reports' ? reports[key] : demands[key];
                     if (!itemData) {
                         alert('Item not found');
                         return;
                     }
                     
-                    // Populate the form with existing data
                     document.getElementById('item-name').value = itemData.name || '';
                     document.getElementById('item-details').value = itemData.details || '';
                     document.getElementById('item-date').value = itemData.date || '';
@@ -770,11 +765,9 @@
                         document.getElementById('item-time').value = itemData.time || '';
                     }
                     
-                    // Store the key being edited
                     window.editingKey = key;
                     window.editingType = type;
                     
-                    // Open modal
                     openModal(type);
                     document.getElementById('modal-title').textContent = `Edit ${type === 'report' ? 'Report' : 'Demand'}`;
                 }
@@ -790,11 +783,9 @@
                         return;
                     }
                     if (confirm('Are you sure you want to delete this item?')) {
-                        // Optimistic UI: Remove immediately
                         if (itemElement) itemElement.remove();
                         adjustScaling();
 
-                        // Firebase delete with detailed logging
                         const ref = type === 'reports' ? reportsRef.child(key) : demandsRef.child(key);
                         console.log(`Attempting delete at path: ${ref.toString()}`);
                         ref.remove().then(() => {
@@ -802,7 +793,7 @@
                         }).catch((error) => {
                             console.error('Firebase delete failed:', error);
                             alert(`Delete failed: ${error.message}. Check rules or console.`);
-                            renderItems(); // Revert UI on error
+                            renderItems();
                         });
                     }
                 }
@@ -812,7 +803,6 @@
         document.getElementById('item-form').addEventListener('submit', (e) => {
             e.preventDefault();
             
-            // Determine the actual type (editing takes precedence over currentType)
             const actualType = window.editingType || currentType;
             
             const item = {
@@ -822,9 +812,7 @@
                 time: actualType === 'demands' || actualType === 'demand' ? document.getElementById('item-time').value : null
             };
 
-            // Check if we're editing or adding
             if (window.editingKey && window.editingType) {
-                // Edit existing item
                 const ref = window.editingType === 'reports' ? reportsRef.child(window.editingKey) : demandsRef.child(window.editingKey);
                 console.log(`Updating item in ${window.editingType} with key: ${window.editingKey}`);
                 ref.update(item).then(() => {
@@ -836,7 +824,6 @@
                     alert(`Update failed: ${error.message}. Check rules or console.`);
                 });
             } else {
-                // Add new item
                 const ref = currentType === 'report' ? reportsRef : demandsRef;
                 console.log(`Adding item to ${currentType}`);
                 ref.push(item).then(() => {
@@ -857,16 +844,15 @@
         async function fetchSportsScores() {
             try {
                 const sports = [
-                    { name: 'NBA', path: 'basketball/nba' }
+                    { name: 'MLB', path: 'baseball/mlb' }
                 ];
                 
                 let allGames = [];
 
-                // Get scores from the last 3 days
                 for (let daysAgo = 0; daysAgo < 3; daysAgo++) {
                     const date = new Date();
                     date.setDate(date.getDate() - daysAgo);
-                    const dateStr = date.toISOString().split('T')[0].replace(/-/g, ''); // Format: YYYYMMDD
+                    const dateStr = date.toISOString().split('T')[0].replace(/-/g, '');
 
                     for (const sport of sports) {
                         try {
@@ -877,9 +863,8 @@
                             if (data.events && data.events.length > 0) {
                                 data.events.forEach(event => {
                                     const competition = event.competitions[0];
-                                    const statusType = competition.status.type.state; // 'pre', 'in', 'post'
+                                    const statusType = competition.status.type.state;
 
-                                    // Only include completed (post) games
                                     if (statusType !== 'post') return;
 
                                     const homeTeam = competition.competitors.find(t => t.homeAway === 'home');
@@ -947,7 +932,7 @@
             updateClock();
             setInterval(updateClock, 60000);
             fetchSportsScores();
-            setInterval(fetchSportsScores, 300000); // Update every 5 minutes
+            setInterval(fetchSportsScores, 300000);
         });
     </script>
 </body>
