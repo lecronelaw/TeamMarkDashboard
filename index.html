@@ -844,28 +844,33 @@
         async function fetchSportsScores() {
             try {
                 const sports = [
-                    { name: 'MLB', path: 'baseball/mlb' }
+                    { name: 'NFL', path: 'football/nfl' }
                 ];
                 
                 let allGames = [];
 
-                for (let daysAgo = 0; daysAgo < 3; daysAgo++) {
+                for (let daysAgo = 0; daysAgo < 14; daysAgo++) {
                     const date = new Date();
                     date.setDate(date.getDate() - daysAgo);
                     const dateStr = date.toISOString().split('T')[0].replace(/-/g, '');
 
                     for (const sport of sports) {
                         try {
-                            const response = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport.path}/scoreboard?dates=${dateStr}`);
+                            // Try preseason first, fall back to regular season
+                            let response = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport.path}/scoreboard?dates=${dateStr}&seasontype=1`);
+                            let data = await response.json();
+                            if (!data.events || data.events.length === 0) {
+                                response = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${sport.path}/scoreboard?dates=${dateStr}&seasontype=2`);
+                                data = await response.json();
+                            }
                             if (!response.ok) continue;
-                            const data = await response.json();
                             
                             if (data.events && data.events.length > 0) {
                                 data.events.forEach(event => {
                                     const competition = event.competitions[0];
                                     const statusType = competition.status.type.state;
 
-                                    if (statusType !== 'post') return;
+                                    if (statusType === 'pre') return;
 
                                     const homeTeam = competition.competitors.find(t => t.homeAway === 'home');
                                     const awayTeam = competition.competitors.find(t => t.homeAway === 'away');
