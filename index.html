@@ -640,13 +640,14 @@
             document.getElementById('clock').textContent = now.toLocaleDateString('en-US', options);
         }
 
-        function openModal(type) {
+        function openModal(type, isEdit = false) {
             currentType = type;
-            document.getElementById('modal-title').textContent = `Add ${type === 'report' ? 'Report' : 'Demand'}`;
+            const isReport = type === 'report' || type === 'reports';
+            document.getElementById('modal-title').textContent = `${isEdit ? 'Edit' : 'Add'} ${isReport ? 'Report' : 'Demand'}`;
             const timeField = document.getElementById('time-field');
-            timeField.style.display = type === 'demand' ? 'block' : 'none';
+            timeField.style.display = !isReport ? 'block' : 'none';
             const assigneeField = document.getElementById('assignee-field');
-            assigneeField.style.display = type === 'report' ? 'block' : 'none';
+            assigneeField.style.display = isReport ? 'block' : 'none';
             document.getElementById('modal').classList.add('active');
             document.getElementById('item-name').focus();
         }
@@ -791,8 +792,7 @@
                     window.editingKey = key;
                     window.editingType = type;
                     
-                    openModal(type);
-                    document.getElementById('modal-title').textContent = `Edit ${type === 'report' ? 'Report' : 'Demand'}`;
+                    openModal(type, true);
                 }
                 
                 if (e.target.classList.contains('delete-btn')) {
