@@ -523,6 +523,15 @@
                     <label for="item-time">Due Time</label>
                     <input type="time" id="item-time">
                 </div>
+                <div class="form-group" id="assignee-field" style="display: none;">
+                    <label for="item-assignee">Assigned To</label>
+                    <select id="item-assignee" style="width:100%;padding:16px;font-size:26px;border:2px solid rgba(96,124,138,0.5);border-radius:10px;background:rgba(96,124,138,0.25);color:white;font-family:inherit;">
+                        <option value="">-- None --</option>
+                        <option value="KEV">KEV</option>
+                        <option value="DAC">DAC</option>
+                        <option value="PS">PS</option>
+                    </select>
+                </div>
                 <div class="modal-buttons">
                     <button type="submit" class="modal-btn save">Save</button>
                     <button type="button" class="modal-btn cancel" onclick="closeModal()">Cancel</button>
@@ -636,6 +645,8 @@
             document.getElementById('modal-title').textContent = `Add ${type === 'report' ? 'Report' : 'Demand'}`;
             const timeField = document.getElementById('time-field');
             timeField.style.display = type === 'demand' ? 'block' : 'none';
+            const assigneeField = document.getElementById('assignee-field');
+            assigneeField.style.display = type === 'report' ? 'block' : 'none';
             document.getElementById('modal').classList.add('active');
             document.getElementById('item-name').focus();
         }
@@ -725,10 +736,19 @@
                 const dateInfo = formatDate(item.date, item.time);
                 const dateText = dateInfo.date + (dateInfo.time ? ` ⏰ ${formatTime(dateInfo.time)}` : '');
 
+                const assigneeColors = { KEV: 'rgba(138,43,226,0.35)', DAC: 'rgba(255,215,0,0.25)', PS: 'rgba(255,255,255,0.15)' };
+                const assigneeBorders = { KEV: '#a855f7', DAC: '#ffd700', PS: '#ffffff' };
+                const assigneeTextColors = { KEV: '#d8b4fe', DAC: '#ffd700', PS: '#ffffff' };
+                const assigneeBg = type === 'reports' && item.assignee ? assigneeColors[item.assignee] || '' : '';
+                const assigneeBorder = type === 'reports' && item.assignee ? assigneeBorders[item.assignee] || 'transparent' : 'transparent';
+                const assigneeTag = type === 'reports' && item.assignee
+                    ? `<span style="font-size:0.8em;font-weight:bold;padding:2px 10px;border-radius:8px;background:${assigneeBorders[item.assignee] || '#888'};color:#000;margin-left:10px;">${item.assignee}</span>`
+                    : '';
+
                 return `
-                    <div class="item ${status}">
+                    <div class="item ${status}" style="${assigneeBg ? `background:${assigneeBg};border-color:${assigneeBorder};` : ''}">
                         <div class="status-indicator ${status}"></div>
-                        <div class="item-name">${item.name}</div>
+                        <div class="item-name">${item.name}${assigneeTag}</div>
                         <div class="item-date">${dateText}</div>
                         ${item.details ? `<div class="item-details">${item.details}</div>` : ''}
                         <button class="edit-btn" data-type="${type}" data-key="${item.key}">✎</button>
@@ -763,6 +783,9 @@
                     document.getElementById('item-date').value = itemData.date || '';
                     if (type === 'demand' && itemData.time) {
                         document.getElementById('item-time').value = itemData.time || '';
+                    }
+                    if (type === 'reports') {
+                        document.getElementById('item-assignee').value = itemData.assignee || '';
                     }
                     
                     window.editingKey = key;
@@ -809,7 +832,8 @@
                 name: document.getElementById('item-name').value.trim(),
                 details: document.getElementById('item-details').value.trim(),
                 date: document.getElementById('item-date').value,
-                time: actualType === 'demands' || actualType === 'demand' ? document.getElementById('item-time').value : null
+                time: actualType === 'demands' || actualType === 'demand' ? document.getElementById('item-time').value : null,
+                assignee: actualType === 'reports' || actualType === 'report' ? document.getElementById('item-assignee').value : null
             };
 
             if (window.editingKey && window.editingType) {
