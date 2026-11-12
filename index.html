@@ -75,6 +75,7 @@
         .dashboard-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
+            grid-template-rows: minmax(0, 1fr);
             gap: 20px;
             flex: 1;
             overflow: hidden;
@@ -92,6 +93,28 @@
             flex-direction: column;
             min-height: 0;
             overflow: hidden;
+        }
+
+        .right-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .right-column .section {
+            flex: 1 1 auto;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 20px;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+            min-width: 0;
         }
 
         .section-header {
@@ -380,6 +403,8 @@
             border-radius: 20px;
             padding: 40px;
             width: 760px;
+            max-height: 95vh;
+            overflow-y: auto;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
             border: 3px solid rgba(96, 124, 138, 0.5);
         }
@@ -483,13 +508,25 @@
                     </div>
                 </div>
 
-                <div class="section">
-                    <div class="section-header">
-                        <div class="section-title">📋 Demands</div>
-                        <button class="add-btn" onclick="openModal('demand')">+ Add</button>
+                <div class="right-column">
+                    <div class="section">
+                        <div class="section-header">
+                            <div class="section-title">📋 Demands</div>
+                            <button class="add-btn" onclick="openModal('demand')">+ Add</button>
+                        </div>
+                        <div class="items-container" id="demands-container">
+                            <div class="empty-state">No demands yet. Click "+ Add" to create one.</div>
+                        </div>
                     </div>
-                    <div class="items-container" id="demands-container">
-                        <div class="empty-state">No demands yet. Click "+ Add" to create one.</div>
+
+                    <div class="section">
+                        <div class="section-header">
+                            <div class="section-title">📁 Wrap-Up Reports</div>
+                            <button class="add-btn" onclick="openModal('wrapup')">+ Add</button>
+                        </div>
+                        <div class="items-container" id="wrapups-container">
+                            <div class="empty-state">No wrap-up reports yet. Click "+ Add" to create one.</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -523,15 +560,24 @@
                     <label for="item-time">Due Time</label>
                     <input type="time" id="item-time">
                 </div>
-                <div class="form-group" id="assignee-field" style="display: none;">
-                    <label for="item-assignee">Assigned To</label>
-                    <select id="item-assignee" style="width:100%;padding:16px;font-size:26px;border:2px solid rgba(96,124,138,0.5);border-radius:10px;background:rgba(96,124,138,0.25);color:white;font-family:inherit;">
-                        <option value="">-- None --</option>
-                        <option value="KEV">KEV</option>
-                        <option value="DAC">DAC</option>
-                        <option value="PS">PS</option>
-                        <option value="REM">REM</option>
-                    </select>
+                <div class="form-row">
+                    <div class="form-group" id="assignee-field" style="display: none;">
+                        <label for="item-assignee">Assigned To</label>
+                        <select id="item-assignee" style="width:100%;padding:16px;font-size:26px;border:2px solid rgba(96,124,138,0.5);border-radius:10px;background:rgba(96,124,138,0.25);color:white;font-family:inherit;">
+                            <option value="">-- None --</option>
+                            <option value="KEV">KEV</option>
+                            <option value="DAC">DAC</option>
+                            <option value="PS">PS</option>
+                            <option value="REM">REM</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="section-field" style="display: none;">
+                        <label for="item-section">Section</label>
+                        <select id="item-section" style="width:100%;padding:16px;font-size:26px;border:2px solid rgba(96,124,138,0.5);border-radius:10px;background:rgba(96,124,138,0.25);color:white;font-family:inherit;">
+                            <option value="reports">Reports</option>
+                            <option value="wrapups">Wrap-Ups</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="modal-buttons">
                     <button type="submit" class="modal-btn save">Save</button>
@@ -556,13 +602,31 @@
         const db = firebase.database();
         const reportsRef = db.ref('reports');
         const demandsRef = db.ref('demands');
+        const wrapupsRef = db.ref('wrapups');
 
         let reports = {};
         let demands = {};
+        let wrapups = {};
         let currentType = '';
 
+        const SECTIONS = {
+            reports: { ref: reportsRef, label: 'Report',         plural: 'reports',         hasAssignee: true,  hasTime: false },
+            demands: { ref: demandsRef, label: 'Demand',         plural: 'demands',         hasAssignee: false, hasTime: true  },
+            wrapups: { ref: wrapupsRef, label: 'Wrap-Up Report', plural: 'wrap-up reports', hasAssignee: true,  hasTime: false }
+        };
+
+        // Accepts 'report'/'reports', 'demand'/'demands', 'wrapup'/'wrapups'
+        function normType(t) {
+            return t.endsWith('s') ? t : t + 's';
+        }
+
+        function getItems(t) {
+            return t === 'reports' ? reports : t === 'demands' ? demands : wrapups;
+        }
+
         function adjustScaling() {
-            const maxItems = Math.max(Object.keys(reports).length, Object.keys(demands).length);
+            // Right column holds two sections (Demands + Wrap-Ups), so count both plus one for the extra header
+            const maxItems = Math.max(Object.keys(reports).length, Object.keys(demands).length + Object.keys(wrapups).length + 1);
             const root = document.documentElement;
 
             if (maxItems <= 3) {
@@ -642,13 +706,15 @@
         }
 
         function openModal(type, isEdit = false) {
-            currentType = type;
-            const isReport = type === 'report' || type === 'reports';
-            document.getElementById('modal-title').textContent = `${isEdit ? 'Edit' : 'Add'} ${isReport ? 'Report' : 'Demand'}`;
-            const timeField = document.getElementById('time-field');
-            timeField.style.display = !isReport ? 'block' : 'none';
-            const assigneeField = document.getElementById('assignee-field');
-            assigneeField.style.display = isReport ? 'block' : 'none';
+            const t = normType(type);
+            const cfg = SECTIONS[t];
+            currentType = t;
+            document.getElementById('modal-title').textContent = `${isEdit ? 'Edit' : 'Add'} ${cfg.label}`;
+            document.getElementById('time-field').style.display = cfg.hasTime ? 'block' : 'none';
+            document.getElementById('assignee-field').style.display = cfg.hasAssignee ? 'block' : 'none';
+            // "Section" dropdown (move between Reports and Wrap-Ups) only appears when editing
+            document.getElementById('section-field').style.display = (isEdit && cfg.hasAssignee) ? 'block' : 'none';
+            if (cfg.hasAssignee) document.getElementById('item-section').value = t;
             document.getElementById('modal').classList.add('active');
             document.getElementById('item-name').focus();
         }
@@ -716,9 +782,15 @@
             renderItems();
         });
 
+        wrapupsRef.on('value', (snapshot) => {
+            wrapups = snapshot.val() || {};
+            renderItems();
+        });
+
         function renderItems() {
             renderList('reports', reports);
             renderList('demands', demands);
+            renderList('wrapups', wrapups);
         }
 
         function renderList(type, itemsObj) {
@@ -726,7 +798,7 @@
             const items = Object.entries(itemsObj || {}).map(([key, item]) => ({ ...item, key }));
             
             if (items.length === 0) {
-                container.innerHTML = `<div class="empty-state">No ${type} yet. Click "+ Add" to create one.</div>`;
+                container.innerHTML = `<div class="empty-state">No ${SECTIONS[type].plural} yet. Click "+ Add" to create one.</div>`;
                 adjustScaling();
                 return;
             }
@@ -741,9 +813,9 @@
                 const assigneeColors = { KEV: 'rgba(138,43,226,0.35)', DAC: 'rgba(255,215,0,0.25)', PS: 'rgba(255,255,255,0.15)', REM: 'rgba(34,197,94,0.3)' };
                 const assigneeBorders = { KEV: '#a855f7', DAC: '#ffd700', PS: '#ffffff', REM: '#22c55e' };
                 const assigneeTextColors = { KEV: '#d8b4fe', DAC: '#ffd700', PS: '#ffffff', REM: '#86efac' };
-                const assigneeBg = type === 'reports' && item.assignee ? assigneeColors[item.assignee] || '' : '';
-                const assigneeBorder = type === 'reports' && item.assignee ? assigneeBorders[item.assignee] || 'transparent' : 'transparent';
-                const assigneeTag = type === 'reports' && item.assignee
+                const assigneeBg = SECTIONS[type].hasAssignee && item.assignee ? assigneeColors[item.assignee] || '' : '';
+                const assigneeBorder = SECTIONS[type].hasAssignee && item.assignee ? assigneeBorders[item.assignee] || 'transparent' : 'transparent';
+                const assigneeTag = SECTIONS[type].hasAssignee && item.assignee
                     ? `<span style="font-size:0.8em;font-weight:bold;padding:2px 10px;border-radius:8px;background:${assigneeBorders[item.assignee] || '#888'};color:#000;margin-left:10px;">${item.assignee}</span>`
                     : '';
 
@@ -762,7 +834,7 @@
             adjustScaling();
         }
 
-        ['reports-container', 'demands-container'].forEach(containerId => {
+        ['reports-container', 'demands-container', 'wrapups-container'].forEach(containerId => {
             document.getElementById(containerId).addEventListener('click', (e) => {
                 if (e.target.classList.contains('edit-btn')) {
                     const btn = e.target;
@@ -774,7 +846,7 @@
                         return;
                     }
                     
-                    const itemData = type === 'reports' ? reports[key] : demands[key];
+                    const itemData = getItems(type)[key];
                     if (!itemData) {
                         alert('Item not found');
                         return;
@@ -783,10 +855,10 @@
                     document.getElementById('item-name').value = itemData.name || '';
                     document.getElementById('item-details').value = itemData.details || '';
                     document.getElementById('item-date').value = itemData.date || '';
-                    if (type === 'demand' && itemData.time) {
+                    if (SECTIONS[type].hasTime && itemData.time) {
                         document.getElementById('item-time').value = itemData.time || '';
                     }
-                    if (type === 'reports') {
+                    if (SECTIONS[type].hasAssignee) {
                         document.getElementById('item-assignee').value = itemData.assignee || '';
                     }
                     
@@ -810,7 +882,7 @@
                         if (itemElement) itemElement.remove();
                         adjustScaling();
 
-                        const ref = type === 'reports' ? reportsRef.child(key) : demandsRef.child(key);
+                        const ref = SECTIONS[type].ref.child(key);
                         console.log(`Attempting delete at path: ${ref.toString()}`);
                         ref.remove().then(() => {
                             console.log('Item deleted successfully in Firebase');
@@ -826,32 +898,46 @@
 
         document.getElementById('item-form').addEventListener('submit', (e) => {
             e.preventDefault();
-            
-            const actualType = window.editingType || currentType;
-            
+
+            const t = normType(window.editingType || currentType);
+            const cfg = SECTIONS[t];
+
             const item = {
                 name: document.getElementById('item-name').value.trim(),
                 details: document.getElementById('item-details').value.trim(),
                 date: document.getElementById('item-date').value,
-                time: actualType === 'demands' || actualType === 'demand' ? document.getElementById('item-time').value : null,
-                assignee: actualType === 'reports' || actualType === 'report' ? document.getElementById('item-assignee').value : null
+                time: cfg.hasTime ? document.getElementById('item-time').value : null,
+                assignee: cfg.hasAssignee ? document.getElementById('item-assignee').value : null
             };
 
             if (window.editingKey && window.editingType) {
-                const ref = window.editingType === 'reports' ? reportsRef.child(window.editingKey) : demandsRef.child(window.editingKey);
-                console.log(`Updating item in ${window.editingType} with key: ${window.editingKey}`);
-                ref.update(item).then(() => {
-                    console.log('Item updated successfully in Firebase');
-                    window.editingKey = null;
-                    window.editingType = null;
-                }).catch((error) => {
-                    console.error('Update failed:', error);
-                    alert(`Update failed: ${error.message}. Check rules or console.`);
-                });
+                const key = window.editingKey;
+                const newType = cfg.hasAssignee ? document.getElementById('item-section').value : t;
+
+                if (newType !== t && SECTIONS[newType]) {
+                    // Move between Reports and Wrap-Ups in a single atomic write
+                    const updates = {};
+                    updates[`${t}/${key}`] = null;
+                    updates[`${newType}/${db.ref(newType).push().key}`] = item;
+                    console.log(`Moving item ${key} from ${t} to ${newType}`);
+                    db.ref().update(updates).then(() => {
+                        console.log('Item moved successfully in Firebase');
+                    }).catch((error) => {
+                        console.error('Move failed:', error);
+                        alert(`Move failed: ${error.message}. Check rules or console.`);
+                    });
+                } else {
+                    console.log(`Updating item in ${t} with key: ${key}`);
+                    cfg.ref.child(key).update(item).then(() => {
+                        console.log('Item updated successfully in Firebase');
+                    }).catch((error) => {
+                        console.error('Update failed:', error);
+                        alert(`Update failed: ${error.message}. Check rules or console.`);
+                    });
+                }
             } else {
-                const ref = currentType === 'report' ? reportsRef : demandsRef;
-                console.log(`Adding item to ${currentType}`);
-                ref.push(item).then(() => {
+                console.log(`Adding item to ${t}`);
+                cfg.ref.push(item).then(() => {
                     console.log('Item added successfully to Firebase');
                 }).catch((error) => {
                     console.error('Add failed:', error);
